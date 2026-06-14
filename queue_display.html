@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PKU UTHM — Queue Display</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=DM+Sans:wght@400;500;600;700&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #050e1a; --card: #0b1a2e; --gold: #f5c542;
+            --green: #00e676; --red: #ff1744; --muted: #8da0b3;
+            --white: #ffffff; --border: rgba(255,255,255,0.07);
+            --blue: #3b82f6; --amber: #f59e0b;
+        }
+        html, body {
+            width: 100vw; height: 100vh; overflow: hidden;
+            background: var(--bg); color: var(--white);
+            font-family: 'DM Sans', sans-serif;
+            display: flex; flex-direction: column;
+        }
+        body::before {
+            content: ''; position: fixed; inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+            background-size: 80px 80px; pointer-events: none;
+        }
+
+        /* ── HEADER ── */
+        .header {
+            height: 110px; background: var(--card);
+            border-bottom: 2px solid var(--gold);
+            display: flex; align-items: center;
+            padding: 0 60px; justify-content: space-between; flex-shrink: 0;
+        }
+        .header-left { display: flex; align-items: center; gap: 20px; }
+        .logo-box {
+            width: 70px; height: 70px;
+            background: rgba(245,197,66,.1);
+            border: 2px solid var(--gold);
+            border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 32px;
+        }
+        .title { font-family: 'Sora', sans-serif; font-size: 24px; font-weight: 700; color: var(--white); letter-spacing: 1px; }
+        .subtitle { font-size: 14px; color: var(--muted); margin-top: 4px; }
+        .clock { font-family: 'Orbitron', sans-serif; font-size: 44px; font-weight: 900; color: var(--gold); }
+        .date-str { font-size: 15px; color: var(--muted); margin-bottom: 4px; text-align: right; }
+
+        /* ── VOICE INDICATOR ── */
+        .voice-indicator {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 14px; border-radius: 8px;
+            background: rgba(0,230,118,.1); border: 1px solid rgba(0,230,118,.25);
+            font-size: 12px; font-weight: 700; color: var(--green);
+            transition: all .3s;
+        }
+        .voice-indicator.speaking {
+            background: rgba(245,158,11,.15); border-color: rgba(245,158,11,.4);
+            color: var(--amber); animation: voicePulse .5s infinite alternate;
+        }
+        .voice-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--green); transition: background .3s;
+        }
+        .voice-indicator.speaking .voice-dot { background: var(--amber); }
+        @keyframes voicePulse { from { opacity: .7; } to { opacity: 1; } }
+
+        /* ── CONTENT GRID ── */
+        .content { display: grid; grid-template-columns: 1fr 1fr; flex: 1; overflow: hidden; }
+        .panel { padding: 16px 30px; border-right: 1px solid var(--border); overflow: hidden; }
+        .panel:last-child { border-right: none; }
+        .panel-title {
+            font-size: 12px; font-weight: 700; letter-spacing: 2px;
+            text-transform: uppercase; color: var(--muted);
+            margin-bottom: 12px; padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap: 8px;
+        }
+        .dot { width: 10px; height: 10px; border-radius: 50%; }
+        .dot-green { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 1.5s infinite; }
+        .dot-gold  { background: var(--gold); }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+        /* ── CALLED ROW ── */
+        .called-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 16px;
+            background: rgba(0,230,118,.06);
+            border: 1px solid rgba(0,230,118,.2);
+            border-left: 4px solid var(--green);
+            border-radius: 8px; margin-bottom: 8px;
+            animation: slideIn .4s ease-out;
+        }
+        .called-row.urgent {
+            background: rgba(255,23,68,.07);
+            border-color: rgba(255,23,68,.35);
+            border-left-color: var(--red);
+            animation: slideIn .4s ease-out, urgentPulse 1s infinite;
+        }
+        .called-row.just-called {
+            animation: slideIn .4s ease-out, newCallFlash .6s ease-out;
+        }
+        @keyframes slideIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes urgentPulse { 0%,100%{box-shadow:0 0 0 0 rgba(255,23,68,0)} 50%{box-shadow:0 0 0 4px rgba(255,23,68,.2)} }
+        @keyframes newCallFlash { 0%{box-shadow:0 0 0 0 rgba(245,197,66,0)} 50%{box-shadow:0 0 0 8px rgba(245,197,66,.4)} 100%{box-shadow:0 0 0 0 rgba(245,197,66,0)} }
+
+        .called-name   { font-size: 17px; font-weight: 700; color: var(--white); }
+        .called-sub    { font-size: 12px; color: var(--muted); margin-top: 2px; }
+        .called-doctor { font-size: 12px; color: rgba(255,255,255,.55); margin-top: 1px; }
+        .called-timer {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 13px; font-weight: 700;
+            padding: 3px 10px; border-radius: 6px; margin-top: 5px;
+            display: inline-block;
+            background: rgba(0,230,118,.15); color: var(--green);
+            border: 1px solid rgba(0,230,118,.3); letter-spacing: 1px;
+        }
+        .called-timer.urgent {
+            background: rgba(255,23,68,.18); color: var(--red);
+            border-color: rgba(255,23,68,.4); animation: blink .7s infinite;
+        }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+        .called-room { text-align: center; flex-shrink: 0; margin-left: 14px; background: rgba(0,230,118,.1); border: 1px solid rgba(0,230,118,.3); border-radius: 8px; padding: 8px 14px; min-width: 160px; }
+        .called-row.urgent .called-room { background: rgba(255,23,68,.1); border-color: rgba(255,23,68,.3); }
+        .proceed-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 3px; }
+        .room-name { font-family: 'Orbitron', sans-serif; font-size: 20px; font-weight: 900; color: var(--green); }
+        .called-row.urgent .room-name { color: var(--red); }
+
+        /* ── SERVING ROW ── */
+        .serving-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 16px;
+            background: rgba(29,91,181,.08);
+            border: 1px solid rgba(29,91,181,.25);
+            border-left: 4px solid #3b82f6;
+            border-radius: 8px; margin-bottom: 8px;
+        }
+        .serving-label { font-size: 11px; color: #3b82f6; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; font-weight: 700; }
+        .serving-room { text-align: center; flex-shrink: 0; margin-left: 14px; background: rgba(29,91,181,.1); border: 1px solid rgba(29,91,181,.25); border-radius: 8px; padding: 8px 14px; min-width: 160px; }
+        .serving-room .room-name { color: #3b82f6; }
+
+        /* ── WAITING ROW ── */
+        .waiting-row { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+        .waiting-row:last-child { border-bottom: none; }
+        .w-num { font-family: 'Orbitron', sans-serif; font-size: 22px; font-weight: 900; color: var(--gold); width: 80px; flex-shrink: 0; }
+        .w-name { font-size: 15px; font-weight: 600; color: var(--white); }
+        .w-svc  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+        .w-pos  { margin-left: auto; flex-shrink: 0; font-size: 13px; color: var(--muted); background: rgba(255,255,255,.05); padding: 4px 12px; border-radius: 20px; }
+
+        /* ── WAIT TIME BADGE ── */
+        .wait-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 2px 8px; border-radius: 5px; margin-top: 3px;
+            font-size: 11px; font-weight: 700;
+            background: rgba(245,197,66,.12); color: var(--gold);
+            border: 1px solid rgba(245,197,66,.25);
+        }
+
+        .empty-msg { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 18px; }
+
+        /* ── STATS BAR ── */
+        .stats-bar { display: flex; background: var(--card); border-top: 1px solid var(--border); height: 72px; flex-shrink: 0; }
+        .stat-item { flex: 1; padding: 0 40px; border-right: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+        .stat-item:last-child { border-right: none; }
+        .stat-val { font-family: 'Orbitron', sans-serif; font-size: 38px; font-weight: 900; color: var(--gold); }
+        .stat-val.green { color: var(--green); }
+        .stat-lbl { font-size: 16px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+
+        /* ── VOICE ANNOUNCEMENT OVERLAY ── */
+        .voice-overlay {
+            position: fixed; top: 120px; left: 50%; transform: translateX(-50%);
+            background: rgba(245,197,66,.95); color: #0b1a2e;
+            padding: 16px 32px; border-radius: 14px;
+            font-family: 'Sora', sans-serif; font-size: 20px; font-weight: 700;
+            box-shadow: 0 8px 40px rgba(245,197,66,.5);
+            z-index: 100; display: none;
+            animation: overlayIn .3s ease-out;
+            text-align: center; max-width: 600px; min-width: 400px;
+        }
+        .voice-overlay.show { display: block; }
+        @keyframes overlayIn { from{opacity:0;transform:translateX(-50%) translateY(-10px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
+        .voice-overlay .vo-queue { font-family: 'Orbitron', sans-serif; font-size: 36px; font-weight: 900; }
+        .voice-overlay .vo-room  { font-size: 16px; margin-top: 4px; opacity: .8; }
+
+        /* ── TICKER ── */
+        .ticker { height: 64px; background: var(--gold); display: flex; align-items: center; flex-shrink: 0; overflow: hidden; }
+        .ticker-label { background: #0b1a2e; color: var(--gold); font-size: 18px; font-weight: 700; padding: 0 28px; height: 100%; display: flex; align-items: center; white-space: nowrap; flex-shrink: 0; letter-spacing: 1px; font-family: 'Sora', sans-serif; }
+        .ticker-text { font-size: 19px; font-weight: 700; color: #0b1a2e; white-space: nowrap; animation: marquee 30s linear infinite; display: inline-block; }
+        @keyframes marquee{0%{transform:translateX(100vw)}100%{transform:translateX(-100%)}}
+    </style>
+</head>
+<body>
+
+    <div class="vo-room"  id="vo-room">Please proceed to Room 1</div>
+</div>
+
+<div class="header">
+    <div class="header-left">
+        <div class="logo-box">🏥</div>
+        <div>
+            <div class="title">PKU UTHM</div>
+            <div class="subtitle">Smart RFID-Based Queue Management System</div>
+        </div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+        <div class="date-str" id="date-str">—</div>
+        <div class="clock" id="clock">00:00:00</div>
+        <div style="display:flex;align-items:center;gap:8px">
+            <div class="voice-indicator" id="voice-indicator">
+                <div class="voice-dot"></div>
+                <span id="voice-status">Voice Ready</span>
+            </div>
+            <button onclick="testVoice()" style="padding:5px 12px;background:rgba(245,197,66,.2);border:1px solid rgba(245,197,66,.4);color:var(--gold);border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif">
+                🔊 Test
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="content">
+    <div class="panel">
+        <div class="panel-title"><div class="dot dot-green"></div>Now Called — Please Proceed</div>
+        <div id="called-list"><div class="empty-msg">No patients called yet</div></div>
+    </div>
+    <div class="panel">
+        <div class="panel-title"><div class="dot dot-gold"></div>Waiting Queue</div>
+        <div id="waiting-list"><div class="empty-msg">No patients waiting</div></div>
+    </div>
+</div>
+
+<div class="stats-bar">
+    <div class="stat-item"><div><div class="stat-val green" id="stat-serving">0</div></div><div class="stat-lbl">Being Served</div></div>
+    <div class="stat-item"><div><div class="stat-val" id="stat-waiting">0</div></div><div class="stat-lbl">Waiting</div></div>
+    <div class="stat-item"><div><div class="stat-val" id="stat-done">0</div></div><div class="stat-lbl">Served Today</div></div>
+    <div class="stat-item"><div><div class="stat-val" id="stat-total">0</div></div><div class="stat-lbl">Total Today</div></div>
+</div>
+
+<div class="ticker">
+    <div class="ticker-label">📢 PKU UTHM</div>
+    <div style="flex:1;overflow:hidden;height:100%;display:flex;align-items:center">
+        <div class="ticker-text">
+            When your name appears on the left panel, please proceed immediately to your assigned room. &nbsp;&nbsp;|&nbsp;&nbsp; Apabila nama anda terpapar di panel kiri, sila pergi segera ke bilik yang ditetapkan. &nbsp;&nbsp;|&nbsp;&nbsp; PKU UTHM Hours: Monday–Friday 8:00AM–5:00PM &nbsp;·&nbsp; Lunch Break 1:00–2:00PM &nbsp;·&nbsp; Closed on Weekends &amp; Public Holidays &nbsp;&nbsp;&nbsp;&nbsp;
+        </div>
+    </div>
+</div>
+
+<script>
+// ── CLOCK ──────────────────────────────────────────────────────────────────
+function updateClock() {
+    const now    = new Date();
+    const days   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    document.getElementById('date-str').textContent = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+    document.getElementById('clock').textContent    = now.toLocaleTimeString('en-MY',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ── VOICE ANNOUNCEMENT ────────────────────────────────────────────────────
+const synth = window.speechSynthesis;
+let voiceEnabled = false;
+// Use sessionStorage to persist announced IDs across page reloads
+// Clear at start of new day
+const savedDate = sessionStorage.getItem('announcedDate');
+const today = new Date().toDateString();
+if (savedDate !== today) {
+    sessionStorage.removeItem('announcedIds');
+    sessionStorage.setItem('announcedDate', today);
+}
+const announcedIds = new Set(JSON.parse(sessionStorage.getItem('announcedIds') || '[]'));
+
+function markAnnounced(uid) {
+    announcedIds.add(uid);
+    sessionStorage.setItem('announcedIds', JSON.stringify([...announcedIds]));
+}
+
+function initVoice() {
+    if (!('speechSynthesis' in window)) {
+        document.getElementById('voice-status').textContent = 'Voice Unavailable';
+        return;
+    }
+    // Auto-enable on first user gesture (click anywhere or press any key)
+    const enable = () => {
+        if (voiceEnabled) return;
+        voiceEnabled = true;
+        document.getElementById('voice-status').textContent = 'Voice Active';
+        // Unlock audio context silently — no speech
+        const silent = new SpeechSynthesisUtterance(' ');
+        silent.volume = 0;
+        synth.speak(silent);
+    };
+    document.addEventListener('click', enable);
+    document.addEventListener('keydown', enable);
+    document.getElementById('voice-status').textContent = 'Click Test to enable voice';
+}
+
+function testVoice() {
+    voiceEnabled = true;
+    document.getElementById('voice-status').textContent = 'Voice Active';
+    synth.cancel(); // stop anything currently playing
+    const test = new SpeechSynthesisUtterance('Voice announcement system is ready.');
+    test.lang   = 'de-DE';
+    test.rate   = 0.9;
+    test.pitch  = 1.0;
+    test.volume = 1.0;
+    const voices = synth.getVoices();
+    const preferred = voices.find(v => v.name === 'Google Deutsch')
+                   || voices.find(v => v.lang === 'de-DE')
+                   || voices.find(v => v.lang.startsWith('en') && v.name.includes('Google'))
+                   || voices[0];
+    if (preferred) test.voice = preferred;
+    // Speak directly, bypass the queue
+    synth.speak(test);
+}
+
+// ── Announcement queue — prevents overlapping voices ──
+const announceQueue = [];
+let isAnnouncing = false;
+
+function processAnnounceQueue() {
+    if (isAnnouncing || !announceQueue.length) return;
+    isAnnouncing = true;
+
+    const { queueNumber, roomName, doctorName } = announceQueue.shift();
+
+    const indicator = document.getElementById('voice-indicator');
+    indicator.classList.add('speaking');
+    document.getElementById('voice-status').textContent = 'Announcing...';
+
+    const roomText = roomName ? `Please proceed to ${roomName}.` : 'Please proceed to the counter.';
+    const text = `Queue number ${queueNumber}. ${roomText} Queue number ${queueNumber}.`;
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang   = 'de-DE';
+    utterance.rate   = 0.9;
+    utterance.pitch  = 1.0;
+    utterance.volume = 1.0;
+
+    const voices = synth.getVoices();
+    const preferred = voices.find(v => v.name === 'Google Deutsch')
+                   || voices.find(v => v.lang === 'de-DE')
+                   || voices.find(v => v.lang.startsWith('en') && v.name.includes('Google'))
+                   || voices[0];
+    if (preferred) utterance.voice = preferred;
+
+    utterance.onend = () => {
+        isAnnouncing = false;
+        indicator.classList.remove('speaking');
+        document.getElementById('voice-status').textContent = announceQueue.length
+            ? `${announceQueue.length} more queued...`
+            : 'Voice Active';
+        // Wait 800ms between announcements so they don't blur together
+        setTimeout(processAnnounceQueue, 800);
+    };
+
+    utterance.onerror = () => {
+        isAnnouncing = false;
+        setTimeout(processAnnounceQueue, 800);
+    };
+
+    synth.speak(utterance);
+}
+
+function announce(queueNumber, patientName, roomName, doctorName) {
+    if (!voiceEnabled || !synth) return;
+    // Add to queue instead of speaking immediately
+    announceQueue.push({ queueNumber, patientName, roomName, doctorName });
+    processAnnounceQueue();
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────
+const CALL_WINDOW_MS = 5 * 60 * 1000;
+
+function isValidCalledAt(val) {
+    return val && val !== 'null' && val !== '' && val !== '0000-00-00 00:00:00';
+}
+
+function secsRemaining(called_at) {
+    const ms = new Date(called_at.replace(' ','T')).getTime() + CALL_WINDOW_MS - Date.now();
+    return Math.max(0, Math.floor(ms / 1000));
+}
+
+function formatTimer(secs) {
+    return `${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')}`;
+}
+
+// ── COUNTDOWN TICK ────────────────────────────────────────────────────────
+function tickTimers() {
+    document.querySelectorAll('.called-timer[data-called]').forEach(el => {
+        const secs   = secsRemaining(el.dataset.called);
+        const urgent = secs <= 60;
+        el.textContent = secs > 0 ? `⏱ ${formatTimer(secs)}` : '⏱ TIME UP';
+        el.classList.toggle('urgent', urgent || secs === 0);
+        const card = el.closest('.called-row');
+        if (card) card.classList.toggle('urgent', urgent || secs === 0);
+    });
+}
+setInterval(tickTimers, 1000);
+
+// ── WAIT TIME ESTIMATES ───────────────────────────────────────────────────
+let waitEstimates = {}; // queue_id -> {wait_label, wait_minutes}
+
+function fetchWaitEstimates() {
+    fetch('get_wait_estimate.php')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) return;
+            waitEstimates = {};
+            data.estimates.forEach(e => {
+                // Match by queue_number since we don't have id directly
+                waitEstimates[e.queue_number] = {
+                    label:   e.wait_label,
+                    minutes: e.wait_minutes,
+                };
+            });
+        })
+        .catch(() => {});
+}
+
+// ── MAIN QUEUE FETCH ──────────────────────────────────────────────────────
+function fetchQueue() {
+    fetch('get_queue_status.php')
+        .then(r => r.json())
+        .then(data => {
+            const nowCalled   = data.filter(i => i.queue_status === 'Waiting' && isValidCalledAt(i.called_at));
+            const beingServed = data.filter(i => i.queue_status === 'Being-Served');
+            const waiting     = data.filter(i => i.queue_status === 'Waiting' && !isValidCalledAt(i.called_at));
+            const completed   = data.filter(i => i.queue_status === 'Completed');
+
+            document.getElementById('stat-serving').textContent = beingServed.length;
+            document.getElementById('stat-waiting').textContent = waiting.length;
+            document.getElementById('stat-done').textContent    = completed.length;
+            document.getElementById('stat-total').textContent   = nowCalled.length + beingServed.length + waiting.length + completed.length;
+
+            // ── Check for newly called patients → trigger voice ──
+            nowCalled.forEach(item => {
+                const uid = `called-${item.id}`;
+                if (!announcedIds.has(uid)) {
+                    markAnnounced(uid);
+                    // Only announce NEW calls — skip on first page load
+                    if (!firstLoad) {
+                        setTimeout(() => {
+                            announce(
+                                item.queue_number,
+                                item.assigned_room,
+                                item.doctor_name
+                            );
+                        }, 500);
+                    }
+                }
+            });
+
+            // ── Left panel: Now Called + Being Served ──
+            const calledEl  = document.getElementById('called-list');
+            const leftItems = [...nowCalled, ...beingServed];
+
+            if (!leftItems.length) {
+                calledEl.innerHTML = '<div class="empty-msg">No patients called yet<br><span style="font-size:14px;margin-top:8px;display:block">Waiting for doctor to call</span></div>';
+            } else {
+                calledEl.innerHTML = leftItems.slice(0, 6).map(item => {
+                    const name   = (item.student_name || item.matrix_number || 'Unknown').toUpperCase();
+                    const room   = item.assigned_room || '';
+                    const doctor = item.doctor_name   || '';
+                    const isNew  = announcedIds.has(`just-${item.id}`);
+
+                    if (item.queue_status === 'Being-Served') {
+                        return `<div class="serving-row">
+                            <div>
+                                <div class="called-name">${name}</div>
+                                <div class="called-sub">${item.matrix_number} · ${item.service_type || 'General'}</div>
+                                ${doctor ? `<div class="called-doctor">🩺 ${doctor}</div>` : ''}
+                                <div class="serving-label">🩺 Being Served</div>
+                            </div>
+                            <div class="serving-room called-room">
+                                <div class="proceed-label">Room</div>
+                                <div class="room-name">${room ? room.toUpperCase() : 'COUNTER'}</div>
+                            </div>
+                        </div>`;
+                    }
+
+                    const secs   = secsRemaining(item.called_at);
+                    const urgent = secs <= 60;
+                    return `<div class="called-row${urgent ? ' urgent' : ''}">
+                        <div>
+                            <div class="called-name">${name}</div>
+                            <div class="called-sub">${item.matrix_number} · ${item.service_type || 'General'}</div>
+                            ${doctor ? `<div class="called-doctor">🩺 ${doctor}</div>` : ''}
+                            <div class="called-timer${urgent ? ' urgent' : ''}" data-called="${item.called_at}">
+                                ${secs > 0 ? '⏱ ' + formatTimer(secs) : '⏱ TIME UP'}
+                            </div>
+                        </div>
+                        <div class="called-room">
+                            <div class="proceed-label">Proceed to</div>
+                            <div class="room-name">${room ? room.toUpperCase() : 'COUNTER'}</div>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+
+            // ── Right panel: Waiting queue with wait time ──
+            const waitingEl = document.getElementById('waiting-list');
+            if (!waiting.length) {
+                waitingEl.innerHTML = '<div class="empty-msg">✅ No patients waiting</div>';
+            } else {
+                waitingEl.innerHTML = waiting.slice(0, 6).map((item, i) => {
+                    const name    = (item.student_name || item.matrix_number || 'Unknown').toUpperCase();
+                    const waitInfo = waitEstimates[item.queue_number];
+                    const waitBadge = waitInfo
+                        ? `<div class="wait-badge">⏳ Est. wait: ${waitInfo.label}</div>`
+                        : '';
+                    return `<div class="waiting-row">
+                        <div class="w-num">${item.queue_number}</div>
+                        <div>
+                            <div class="w-name">${name}</div>
+                            <div class="w-svc">${item.service_type || 'General'}</div>
+                            ${waitBadge}
+                        </div>
+                        <div class="w-pos">#${i + 1} in line</div>
+                    </div>`;
+                }).join('');
+            }
+        })
+        .catch(() => {});
+}
+
+initVoice();
+// First fetch just loads current state silently — no announcements
+let firstLoad = true;
+fetchQueue();
+fetchWaitEstimates();
+// After 4 seconds, enable announcements for NEW calls only
+setTimeout(() => { firstLoad = false; }, 4000);
+setInterval(fetchQueue, 3000);
+setInterval(fetchWaitEstimates, 30000);
+</script>
+</body>
+</html>
